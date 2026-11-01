@@ -67,16 +67,26 @@ with this supplied baseline; it does not establish authenticity or completeness.
 
 | Source | Data rows excluding header | Accepted unique | Duplicate | Rejected |
 | --- | --- | --- | --- | --- |
-| auth_log.csv | [fill] | [fill] | [fill] | [fill] |
-| file_log.csv | [fill] | [fill] | [fill] | [fill] |
+| auth_log.csv | 60 | 54 | 1 (row 21) | 5 (rows 26, 32, 36, 47, 50) |
+| file_log.csv | 35 | 30 | 1 row(20) | 4 (rows 5, 11, 30, 36) |
 
-- SHA-256 check outcome and what it establishes: [fill]
-- One rejected event ID and the exact rejection reason: [fill]
-- Number of flagged successful sessions: [fill]
+- SHA-256 check outcome and what it establishes: 
+"sha256": {
+    "auth_log.csv": "9011778a7687a41e54da4ba96bd6597bf74252c9715572e2daac2615bebfc3d7",
+    "file_log.csv": "394afab97ca10d01347051f4862bf6b04f5937df41cd3d334c85898faa4feb73"
+  }
+it establishes the integrity of the data
+- One rejected event ID and the exact rejection reason: 
+A900 from auth_log.csv rejected : Invalid isoformat string: 'not-a-time'
+- Number of flagged successful sessions: 
+3 successful sessions 
 
 | Success ID | Account | Session | Supporting failure IDs | Download IDs | Event count | Total bytes |
 | --- | --- | --- | --- | --- | --- | --- |
-| [one row per flagged success] | | | | | | |
+| A005 | analyst01 | S-104 | A002, A003, A004 | F001, F002, F003 | 3 | 5509120 |
+| A018 | analyst02 | S-304 | A015, A016, A017 | F013 | 1 | 2048 |
+| A014 | backup_svc | S-204 | A011, A012, A013 | none | 0 | 0 |
+
 
 ## Manual evidence check -- do this without asking AI to count for you
 
@@ -86,21 +96,64 @@ original timestamps and UTC equivalents. Add rows as needed.
 
 | Source and event ID | Original timestamp | UTC timestamp | What the row records |
 | --- | --- | --- | --- |
-| [fill] | [fill] | [fill] | [fill] |
+| auth_log.csv A002 (row 41) | 2026-10-20T08:58:00Z | 2026-10-20T08:58:00Z | FAIL |
+| auth_log.csv A003 (row 12) | 2026-10-20T09:00:00Z | 2026-10-20T09:00:00Z | FAIL |
+| auth_log.csv A004 (row 10) | 2026-10-20T10:01:00+01:00 | 2026-10-20T09:01:00Z | FAIL |
+| auth_log.csv A005 (row 61) | 2026-10-20T09:03:00Z | 2026-10-20T09:03:00Z | SUCCESS |
+| file_log.csv F001 (row 3) | 2026-10-20T09:05:00Z | 2026-10-20T09:05:00Z | DOWNLOAD SUCCESS | 
+| file_log.csv F002 (row 24) | 2026-10-20T10:07:00+01:00 | 2026-10-20T09:07:00Z | DOWNLOAD SUCCESS |
+| file_log.csv F003 (row 17) | 2026-10-20T09:13:00Z | 2026-10-20T09:13:00Z | DOWNLOAD SUCCESS |
 
-- Manual sum of download bytes, showing the addition: [fill]
-- A001 versus A002: which qualifies for the A005 window and why? [fill]
-- F003 versus F004: which qualifies for the A005 follow-up and why? [fill]
-- Why F005 is excluded even though the account matches: [fill]
-- One +01:00 timestamp and its equivalent UTC time: [fill]
-- One limitation of excluding malformed records: [fill]
+
+- Manual sum of download bytes, showing the addition: 5242880 + 262144 + 4096 = 5509120
+- A001 versus A002: which qualifies for the A005 window and why? : 
+2026-10-20T09:03:00Z for AA05 which means between : 08:58:00 and 09:03:00
+Or A001 is : 08:57:59 and A002 : 08:58:00 so A002 will be qualified
+- F003 versus F004: which qualifies for the A005 follow-up and why?
+2026-10-20T09:03:00Z for AA05 which means between : 09:03:00 and 09:13:00
+F003 : 2026-10-20T09:13:00Z
+F004 : 2026-10-20T09:13:01Z
+F003 will be qualified not F004
+- Why F005 is excluded even though the account matches: 
+Because session_id of F005 = S_OTHER while session_id of A005 = S-104
+- One +01:00 timestamp and its equivalent UTC time: 
+2026-10-20T10:07:00+01:00 equivalent : 2026-10-20T09:07:00Z
+- One limitation of excluding malformed records: 
+F900,2026-10-20T09:06:00,analyst01,DF-PORTAL01,S-104,DOWNLOAD,/training/case-017/evidence_export.zip,5242880,SUCCESS
+This line for instance it misses the Z though everything else is matching
 
 ## Checks actually run
 
 Command, date and actual final result (paste output, including failures if any):
 
 ```text
-[fill]
+└─$ python3 check_solution.py
+test_supplied_case (__main__.CaseChecks.test_supplied_case) ... ok
+test_closed_window_includes_zero_and_ten_minutes (__main__.DownloadChecks.test_closed_window_includes_zero_and_ten_minutes) ... ok
+test_configurable_followup (__main__.DownloadChecks.test_configurable_followup) ... ok
+test_does_not_mutate_either_input (__main__.DownloadChecks.test_does_not_mutate_either_input) ... ok
+test_empty (__main__.DownloadChecks.test_empty) ... ok
+test_keeps_alert_with_no_downloads (__main__.DownloadChecks.test_keeps_alert_with_no_downloads) ... ok
+test_ranking_event_ties_and_repeated_paths (__main__.DownloadChecks.test_ranking_event_ties_and_repeated_paths) ... ok
+test_requires_session_account_host_action_and_success (__main__.DownloadChecks.test_requires_session_account_host_action_and_success) ... ok
+test_conflicting_ids_are_not_silently_discarded (__main__.EvidenceChecks.test_conflicting_ids_are_not_silently_discarded) ... ok
+test_equivalent_time_offsets_and_missing_offset (__main__.EvidenceChecks.test_equivalent_time_offsets_and_missing_offset) ... ok
+test_hash_mismatch_stops_analysis (__main__.EvidenceChecks.test_hash_mismatch_stops_analysis) ... ok
+test_supplied_quality_counts_and_duplicates (__main__.EvidenceChecks.test_supplied_quality_counts_and_duplicates) ... ok
+test_account_ip_and_host_must_all_match (__main__.LoginChecks.test_account_ip_and_host_must_all_match) ... ok
+test_does_not_mutate_input (__main__.LoginChecks.test_does_not_mutate_input) ... ok
+test_empty (__main__.LoginChecks.test_empty) ... ok
+test_failures_without_success_are_not_alerts (__main__.LoginChecks.test_failures_without_success_are_not_alerts) ... ok
+test_outside_equal_and_future_failures_do_not_count (__main__.LoginChecks.test_outside_equal_and_future_failures_do_not_count) ... ok
+test_parameters_and_each_success_window (__main__.LoginChecks.test_parameters_and_each_success_window) ... ok
+test_ties_and_output_order (__main__.LoginChecks.test_ties_and_output_order) ... ok
+test_unsorted_rows_and_evidence_order (__main__.LoginChecks.test_unsorted_rows_and_evidence_order) ... ok
+test_window_includes_exactly_five_minutes (__main__.LoginChecks.test_window_includes_exactly_five_minutes) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 0.002s
+
+OK
 ```
 
 All 21 supplied checks should pass. Passing these checks is limited validation
@@ -110,15 +163,34 @@ of the stated classroom rule, not certification of a forensic tool.
 
 Prompt 3 response about the overstated claim (keep the actual response):
 
-> [paste]
+Unsupported parts (96 words):
 
-One claim we corrected or independently verified, with event IDs:
+“Largest download total” is true only for analyst01 among flagged sessions (5,509,120 bytes vs 2,048 and 0). Nothing shows the rule covers all activity.
+“Belongs to the attacker” asserts identity and intent. The summary says matches don’t prove intrusion or identity.
+“Stole evidence” asserts theft. Rows record downloads, not file contents, purpose, or destination.
+“Prove” is too strong. The rule only flags sessions for review.
+Matching SHA-256 values show the files are unchanged from the hashed copies. They don’t show the logs are authentic or complete. Rejected rows (9) and duplicates (2) exist too.
 
-[fill]
+Cautious rewrite:
+
+Session S-104 (analyst01, from 203.0.113.44) has the largest download total among the three flagged sessions, 3 downloads totaling 5,509,120 bytes after three failures and a success, so it merits priority review. The logs alone do not establish who was behind the activity, their intent, what the files contained, or that the logs are complete, since matching hashes show only that the analyzed files are unchanged, and some rows were rejected or duplicated.
+
+One claim we corrected or independently verified, with event IDs: We checked the A005 download window by hand. F003 (09:13:00Z) is included and F004 (09:13:01Z) is excluded, which confirms the closed window T <= time <= T + 10 minutes. We also corrected our results table, where backup_svc had the wrong success ID (A018 instead of A014).
 
 Final 180-220 word finding, reviewed and edited by the pair:
 
-[write here]
+Finding: Session S-104 (DF-017, training data)
+
+Observed: On 20 Oct 2026, account analyst01 from 203.0.113.44 on DF-PORTAL01 logged three failures (A002-A004) followed by a success (A005) at 09:03:00Z. Three successful DOWNLOAD events followed in session S-104 (F001, F002, F003), spanning 09:05:00Z-09:13:00Z and totalling 5,509,120 bytes. Under the stated rule, this session ranks first by recorded volume, so it merits priority review.
+
+Comparison: S-304 (analyst02; failures A015-A017, success A018 at 10:05:00Z) shows one download, F013, of 2,048 bytes. S-204 (backup_svc) shows none.
+
+Inference (tentative): The sequence is consistent with credential guessing followed by data collection. It is equally consistent with a legitimate user mistyping a password and then retrieving authorised case files. An account or IP does not identify a person.
+
+Limitations: Nine rows were rejected, including F900, an analyst01/S-104 download with no timezone offset. It is excluded, so totals may be incomplete. Also, bytes are application-recorded; completion and destination are unsupported, and clock accuracy and log completeness are unverified.
+
+Next requests: (1) Network or transfer logs showing completion and destination for F001-F003. (2) Help-desk or password-reset records and access authorisation for analyst01, plus DF-PORTAL01 clock-synchronisation records.
+
 
 It must cite evidence IDs, separate observation from inference, include a
 comparison session, two limitations, one benign explanation and two next
@@ -126,11 +198,11 @@ evidence requests. Do not claim that an account or IP identifies a person.
 
 ## AI use and pair review
 
-- Names of both partners: [fill]
-- GenAI tool/ChatGPT date and displayed model: [fill]
-- Prompts used and what they produced: [fill]
-- One follow-up question or correction, with a short response excerpt: [fill]
-- Results of code and evidence checks performed: [fill]
+- Names of both partners: Samuel Berthoule
+- GenAI tool/ChatGPT date and displayed model: Claude Sonnet 5.5 Medium
+- Prompts used and what they produced: Prompt 1 produced find_login_sequences; Prompt 2 produced correlate_download; Prompt 3 reviewed a claim and flagged identity, theft and hash claims as unsupported; Prompt 4 drafted the final finding.
+- One follow-up question or correction, with a short response excerpt: 
+- Results of code and evidence checks performed: python3 check_solution.py gave Ran 21 tests, OK. We manually checked the S-104 timeline against both original CSVs and the byte total (5509120) matches summary.json. Hashes match the manifest.
 
 
 ## Submit
